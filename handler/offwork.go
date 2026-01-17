@@ -158,8 +158,8 @@ WHERE
 		return
 	}
 
-	// 3. 如果不足 10 条，自动造 5 条数据
-	if len(points) < 10 {
+	// 3. 如果不足 5 条，自动造 5 条数据
+	if len(points) < 5 {
 		log.Printf("addr[%s:%s] points:%d < 10", lngStr, latStr, len(points))
 		tx, _ := db.DB.Begin()
 
