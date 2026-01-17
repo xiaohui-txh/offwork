@@ -1,5 +1,5 @@
 # project
-offwork1.0
+offwork1
 
 ## 目录结构说明
 ~~~
