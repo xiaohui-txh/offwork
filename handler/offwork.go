@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"math/rand/v2"
+	"math/rand"
 	"net/http"
 	"strconv"
 
