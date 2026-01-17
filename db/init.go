@@ -11,7 +11,7 @@ import (
 var DB *sql.DB
 
 func InitDB() error {
-	dsn := "root:f9rMNjuz@tcp(127.0.0.1:3306)/offwork?parseTime=true"
+	dsn := "root:f9rMNjuz@tcp(10.40.105.29:3306)/offwork?parseTime=true"
 	db, err := sql.Open("mysql", dsn)
 	if err != nil {
 		log.Printf("open mysql failed for %v", err)
