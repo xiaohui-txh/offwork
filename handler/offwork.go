@@ -112,53 +112,14 @@ func NearbyOffwork2(c *gin.Context) {
 	lng, _ := strconv.ParseFloat(lngStr, 64)
 	lat, _ := strconv.ParseFloat(latStr, 64)
 
-	// 1. 最近一小时全量下班人数
-	var allCount int
-	err := db.DB.QueryRow(`
-SELECT COUNT(*)
-FROM offwork_checkin
-WHERE created_at >= NOW() - INTERVAL 1 HOUR
-`).Scan(&allCount)
-	if err != nil {
-		c.JSON(500, gin.H{"code": 1, "msg": err.Error()})
-		return
-	}
-
-	// 2. 查询 nearby 数据
-	queryNearby := func() ([][2]float64, error) {
-		rows, err := db.DB.Query(`
-SELECT lng, lat
-FROM offwork_checkin
-WHERE
-  created_at >= NOW() - INTERVAL 1 HOUR
-  AND
-  6371 * acos(
-    cos(radians(?)) * cos(radians(lat)) *
-    cos(radians(lng) - radians(?)) +
-    sin(radians(?)) * sin(radians(lat))
-  ) <= 3
-`, lat, lng, lat)
-		if err != nil {
-			return nil, err
-		}
-		defer rows.Close()
-
-		var points [][2]float64
-		for rows.Next() {
-			var lo, la float64
-			rows.Scan(&lo, &la)
-			points = append(points, [2]float64{lo, la})
-		}
-		return points, nil
-	}
-
-	points, err := queryNearby()
+	// 查询 nearby 数据
+	points, err := queryNearby(lat, lng)
 	if err != nil {
 		c.JSON(500, gin.H{"code": 2, "msg": err.Error()})
 		return
 	}
 
-	// 3. 如果不足 5 条，自动造 5 条数据
+	// 如果不足 5 条，自动造 5 条数据
 	if len(points) < 5 {
 		log.Printf("addr[%s:%s] points:%d < 10", lngStr, latStr, len(points))
 		tx, _ := db.DB.Begin()
@@ -174,10 +135,10 @@ WHERE
 		tx.Commit()
 
 		// 重新查询
-		points, _ = queryNearby()
+		points, _ = queryNearby(lat, lng)
 	}
 
-	// 4. 聚合（100m）
+	// 聚合（100m）
 	grid := make(map[string]*model.NearbyGridItem)
 
 	for _, p := range points {
@@ -195,6 +156,18 @@ WHERE
 		grid[key].Count++
 	}
 
+	// 最近一小时全量下班人数
+	var allCount int
+	err = db.DB.QueryRow(`
+SELECT COUNT(*)
+FROM offwork_checkin
+WHERE created_at >= NOW() - INTERVAL 1 HOUR
+`).Scan(&allCount)
+	if err != nil {
+		c.JSON(500, gin.H{"code": 1, "msg": err.Error()})
+		return
+	}
+
 	resp := model.NearbyResponse{
 		AllCount: allCount,
 	}
@@ -204,6 +177,33 @@ WHERE
 	}
 
 	c.JSON(http.StatusOK, resp)
+}
+
+func queryNearby(lat, lng float64) ([][2]float64, error) {
+	rows, err := db.DB.Query(`
+SELECT lng, lat
+FROM offwork_checkin
+WHERE
+  created_at >= NOW() - INTERVAL 1 HOUR
+  AND
+  6371 * acos(
+    cos(radians(?)) * cos(radians(lat)) *
+    cos(radians(lng) - radians(?)) +
+    sin(radians(?)) * sin(radians(lat))
+  ) <= 3
+`, lat, lng, lat)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var points [][2]float64
+	for rows.Next() {
+		var lo, la float64
+		rows.Scan(&lo, &la)
+		points = append(points, [2]float64{lo, la})
+	}
+	return points, nil
 }
 
 // 在 center 点 3km 内生成随机点
